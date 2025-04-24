@@ -1,0 +1,114 @@
+---
+- name: Install and Configure Nextcloud using Docker
+  hosts: all
+  become: yes
+
+  vars:
+    nextcloud_domain: "{{ nextcloud_domain | default('localhost') }}"
+    nextcloud_external_url: "{{ nextcloud_domain }}"
+    nextcloud_home: "/nextcloud" 
+    nextcloud_db_password: "{{ nextcloud_db_password }}" 
+    nextcloud_admin_user: "admin"    
+    mysql_root_password: "{{ nextcloud_db_password }}"  
+    mysql_db: "nextcloud"  
+    mysql_user: "nextcloud"  
+    mysql_password: "{{ nextcloud_db_password }}"  
+
+  tasks:
+    - name: Install general prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+          - python3
+          - python3-pip
+        update_cache: yes
+      when: ansible_facts.packages['docker-ce'] is not defined
+
+    - name: Add Docker’s official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+
+    - name: Install Docker Engine
+      apt:
+        name: docker-ce
+        update_cache: yes
+        state: latest
+
+    - name: Ensure Python Docker SDK is installed
+      pip:
+        name: docker
+        state: present
+
+    - name: Ensure nextcloud_home directory exists
+      file:
+        path: "{{ nextcloud_home }}"
+        state: directory
+        owner: root  # You can change the owner and group as needed
+        group: root
+        mode: '0755'
+
+    - name: Pull Nextcloud Docker image
+      docker_image:
+        name: nextcloud:latest
+        source: pull
+
+    - name: Create Nextcloud network
+      docker_network:
+        name: nextcloud-network
+
+
+    - name: Pull MySQL Docker image
+      docker_image:
+        name: mysql:5.7
+        source: pull
+
+    - name: Create and start MySQL container
+      docker_container:
+        name: mysql
+        image: mysql:5.7
+        state: started
+        restart_policy: always
+        hostname: mysql
+        env:
+          MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+          MYSQL_DATABASE: "{{ mysql_db }}"
+          MYSQL_USER: "{{ mysql_user }}"
+          MYSQL_PASSWORD: "{{ mysql_password }}"
+        networks:
+          - name: nextcloud-network
+        volumes:
+          - mysql_data:/var/lib/mysql
+
+    - name: Create and start Nextcloud container
+      docker_container:
+        name: nextcloud
+        image: nextcloud:latest
+        state: started
+        restart_policy: always
+        ports:
+          - "80:80"
+        volumes:
+          - "{{ nextcloud_home }}/apps:/var/www/html/apps"
+          - "{{ nextcloud_home }}/config:/var/www/html/config"
+          - "{{ nextcloud_home }}/data:/var/www/html/data"
+        env:
+          MYSQL_PASSWORD: "{{ nextcloud_db_password }}"
+          MYSQL_HOST: mysql
+          MYSQL_DATABASE: "{{mysql_db}}"
+          MYSQL_USER: "{{mysql_user}}"
+        networks:
+          - name: nextcloud-network
+
+    - name: Retrieve Nextcloud URL
+      debug:
+        msg: "Visit http://{{ nextcloud_external_url }} to access Nextcloud"
