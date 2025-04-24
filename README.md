@@ -53,14 +53,3 @@ You can tailor your Nextcloud experience by:
 - Using Doprax’s installation config UI for environment-specific tweaks
 
 ---
-
-## 📬 Support
-
-For help or questions, feel free to open an issue or reach out via [Doprax Support](https://doprax.com/help).
-
----
-
-## 🧾 License
-
-This project uses the [GNU AGPLv3 License](https://www.gnu.org/licenses/agpl-3.0.html), the same license as Nextcloud.
-
